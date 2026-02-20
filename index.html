@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>作文評価・添削アプリ</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Noto Sans JP', sans-serif;
+  background-color: #f7f3ee;
+  color: #333;
+  min-height: 100vh;
+  line-height: 1.7;
+}
+
+h1, h2, h3, h4 {
+  font-family: 'Noto Serif JP', serif;
+}
+
+/* Header */
+.header {
+  background: linear-gradient(135deg, #c0392b, #a93226);
+  color: #fff;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-title {
+  font-size: 1.4rem;
+  letter-spacing: 0.05em;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.api-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  transition: background-color 0.3s;
+}
+
+.api-indicator.set {
+  background-color: #2ecc71;
+}
+
+.api-indicator.unset {
+  background-color: #e74c3c;
+}
+
+.api-key-btn {
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.4);
+  padding: 6px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 0.85rem;
+  transition: background 0.2s;
+}
+
+.api-key-btn:hover {
+  background: rgba(255,255,255,0.3);
+}
+
+/* Modal */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.5);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-overlay.active {
+  display: flex;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 12px;
+  padding: 32px;
+  width: 90%;
+  max-width: 480px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+}
+
+.modal h3 {
+  margin-bottom: 16px;
+  color: #c0392b;
+}
+
+.modal-input-wrap {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.modal-input-wrap input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-family: monospace;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.modal-input-wrap input:focus {
+  border-color: #c0392b;
+}
+
+.toggle-vis-btn {
+  background: #eee;
+  border: none;
+  border-radius: 8px;
+  padding: 0 12px;
+  cursor: pointer;
+  font-size: 1.1rem;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.modal-actions button {
+  padding: 8px 20px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 0.9rem;
+}
+
+.btn-save {
+  background: #c0392b;
+  color: #fff;
+}
+
+.btn-save:hover {
+  background: #a93226;
+}
+
+.btn-cancel {
+  background: #eee;
+  color: #333;
+}
+
+.modal-note {
+  font-size: 0.75rem;
+  color: #999;
+  margin-top: 8px;
+}
+
+/* Main Layout */
+.main-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  max-width: 1280px;
+  margin: 24px auto;
+  padding: 0 24px;
+}
+
+/* Cards */
+.card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+}
+
+.card-title {
+  font-size: 1.1rem;
+  margin-bottom: 16px;
+  color: #c0392b;
+  border-bottom: 2px solid #f0e6dc;
+  padding-bottom: 8px;
+}
+
+/* Input Area */
+.essay-textarea {
+  width: 100%;
+  min-height: 280px;
+  padding: 16px;
+  border: 2px dashed #d4c8b8;
+  border-radius: 8px;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 0.95rem;
+  line-height: 1.8;
+  resize: vertical;
+  outline: none;
+  background: #fdfcfa;
+  transition: border-color 0.2s;
+}
+
+.essay-textarea:focus {
+  border-color: #c0392b;
+  border-style: solid;
+}
+
+.essay-textarea.drag-over {
+  border-color: #c0392b;
+  background: #fef5f3;
+}
+
+.char-count {
+  text-align: right;
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: #888;
+}
+
+/* Settings */
+.settings-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.setting-group label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+}
+
+.setting-group select,
+.setting-group input[type="text"] {
+  width: 100%;
+  padding: 10px 14px;
+  border: 2px solid #e0d8ce;
+  border-radius: 8px;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 0.9rem;
+  background: #fdfcfa;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.setting-group select:focus,
+.setting-group input[type="text"]:focus {
+  border-color: #c0392b;
+}
+
+/* Severity buttons */
+.severity-options {
+  display: flex;
+  gap: 8px;
+}
+
+.severity-options input[type="radio"] {
+  display: none;
+}
+
+.severity-options label {
+  flex: 1;
+  text-align: center;
+  padding: 8px 12px;
+  border: 2px solid #e0d8ce;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.severity-options input[type="radio"]:checked + label {
+  background: #c0392b;
+  color: #fff;
+  border-color: #c0392b;
+}
+
+/* Submit button */
+.submit-btn {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, #c0392b, #e74c3c);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 1.1rem;
+  font-family: 'Noto Serif JP', serif;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.2s;
+  box-shadow: 0 4px 12px rgba(192,57,43,0.3);
+  margin-top: 16px;
+}
+
+.submit-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(192,57,43,0.4);
+}
+
+.submit-btn:active {
+  transform: translateY(0);
+}
+
+.submit-btn:disabled {
+  background: #ccc;
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Loading */
+.loading-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(247,243,238,0.85);
+  z-index: 150;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.loading-overlay.active {
+  display: flex;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #e0d8ce;
+  border-top-color: #c0392b;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-text {
+  font-family: 'Noto Serif JP', serif;
+  color: #c0392b;
+  font-size: 1rem;
+}
+
+/* Result Area */
+.result-area {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.result-placeholder {
+  text-align: center;
+  padding: 80px 24px;
+  color: #bbb;
+  font-size: 0.95rem;
+}
+
+.result-placeholder::before {
+  content: '📝';
+  display: block;
+  font-size: 3rem;
+  margin-bottom: 16px;
+}
+
+/* Score display */
+.score-total-card {
+  text-align: center;
+  padding: 32px;
+  animation: fadeInUp 0.5s ease;
+}
+
+.score-total-number {
+  font-family: 'Noto Serif JP', serif;
+  font-size: 4rem;
+  font-weight: 700;
+  color: #c0392b;
+  line-height: 1;
+}
+
+.score-total-label {
+  font-size: 1.2rem;
+  color: #888;
+  margin-top: 4px;
+}
+
+.score-total-comment {
+  margin-top: 16px;
+  font-size: 0.95rem;
+  color: #555;
+  line-height: 1.8;
+}
+
+/* Score bars */
+.score-bars {
+  animation: fadeInUp 0.6s ease;
+}
+
+.score-bar-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.score-bar-label {
+  width: 120px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.score-bar-track {
+  flex: 1;
+  height: 24px;
+  background: #f0e6dc;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+}
+
+.score-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #c0392b, #e74c3c);
+  border-radius: 12px;
+  transition: width 0.8s ease;
+  min-width: 0;
+}
+
+.score-bar-value {
+  width: 50px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #c0392b;
+}
+
+/* Good / Improvement cards */
+.feedback-card {
+  border-radius: 10px;
+  padding: 20px;
+  animation: fadeInUp 0.7s ease;
+}
+
+.feedback-card.good {
+  background: #eafaf1;
+  border-left: 4px solid #27ae60;
+}
+
+.feedback-card.improve {
+  background: #fdf2f2;
+  border-left: 4px solid #c0392b;
+}
+
+.feedback-card h4 {
+  margin-bottom: 10px;
+  font-size: 1rem;
+}
+
+.feedback-card.good h4 {
+  color: #27ae60;
+}
+
+.feedback-card.improve h4 {
+  color: #c0392b;
+}
+
+.feedback-list {
+  list-style: none;
+  padding: 0;
+}
+
+.feedback-list li {
+  padding: 6px 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  position: relative;
+  padding-left: 18px;
+}
+
+.feedback-list li::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  font-weight: bold;
+}
+
+.feedback-card.good .feedback-list li::before {
+  color: #27ae60;
+}
+
+.feedback-card.improve .feedback-list li::before {
+  color: #c0392b;
+}
+
+/* Corrected text */
+.corrected-card {
+  animation: fadeInUp 0.8s ease;
+}
+
+.corrected-text {
+  background: #fdfcfa;
+  border: 1px solid #e0d8ce;
+  border-radius: 8px;
+  padding: 20px;
+  line-height: 2;
+  font-size: 0.95rem;
+  white-space: pre-wrap;
+}
+
+/* Copy button */
+.copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  background: #555;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 0.9rem;
+  transition: background 0.2s;
+  align-self: flex-end;
+}
+
+.copy-btn:hover {
+  background: #333;
+}
+
+.copy-btn.copied {
+  background: #27ae60;
+}
+
+/* Error */
+.error-card {
+  background: #fdf2f2;
+  border: 1px solid #e74c3c;
+  border-radius: 10px;
+  padding: 20px;
+  color: #c0392b;
+  animation: fadeInUp 0.5s ease;
+}
+
+.error-card h4 {
+  margin-bottom: 8px;
+}
+
+.error-card pre {
+  margin-top: 12px;
+  background: #fff;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: #555;
+}
+
+/* Animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .main-container {
+    grid-template-columns: 1fr;
+    padding: 0 12px;
+    margin: 12px auto;
+    gap: 16px;
+  }
+
+  .header {
+    padding: 12px 16px;
+  }
+
+  .header-title {
+    font-size: 1.1rem;
+  }
+
+  .score-total-number {
+    font-size: 3rem;
+  }
+
+  .score-bar-label {
+    width: 80px;
+    font-size: 0.8rem;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <h1 class="header-title">作文評価・添削アプリ</h1>
+  <div class="header-right">
+    <span class="api-indicator unset" id="apiIndicator" title="APIキー未設定"></span>
+    <button class="api-key-btn" id="openModalBtn">APIキー設定</button>
+  </div>
+</header>
+
+<!-- API Key Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h3>Gemini APIキー設定</h3>
+    <div class="modal-input-wrap">
+      <input type="password" id="apiKeyInput" placeholder="APIキーを入力してください">
+      <button class="toggle-vis-btn" id="toggleVisBtn" title="表示/非表示">👁</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="cancelModalBtn">キャンセル</button>
+      <button class="btn-save" id="saveApiKeyBtn">保存</button>
+    </div>
+    <p class="modal-note">※ APIキーはブラウザのlocalStorageに保存されます。個人利用を前提としているため、共有端末での使用にはご注意ください。</p>
+  </div>
+</div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text">作文を評価中です...</div>
+</div>
+
+<!-- Main -->
+<main class="main-container">
+  <!-- Left Column -->
+  <div class="left-column">
+    <!-- Essay Input -->
+    <div class="card" style="margin-bottom: 16px;">
+      <h2 class="card-title">作文入力</h2>
+      <textarea class="essay-textarea" id="essayInput" placeholder="ここに作文を貼り付けてください。&#10;&#10;.txt ファイルのドラッグ&ドロップにも対応しています。"></textarea>
+      <div class="char-count" id="charCount">文字数: 0</div>
+    </div>
+
+    <!-- Settings -->
+    <div class="card" style="margin-bottom: 16px;">
+      <h2 class="card-title">評価設定</h2>
+      <div class="settings-grid">
+        <div class="setting-group">
+          <label for="gradeSelect">学年</label>
+          <select id="gradeSelect">
+            <option value="小学生">小学生</option>
+            <option value="中学生" selected>中学生</option>
+            <option value="高校生">高校生</option>
+            <option value="大学生・社会人">大学生・社会人</option>
+          </select>
+        </div>
+        <div class="setting-group">
+          <label for="themeInput">作文テーマ（任意）</label>
+          <input type="text" id="themeInput" placeholder="例：修学旅行の思い出">
+        </div>
+        <div class="setting-group">
+          <label>評価の厳しさ</label>
+          <div class="severity-options">
+            <input type="radio" name="severity" id="sevGentle" value="やさしく">
+            <label for="sevGentle">やさしく</label>
+            <input type="radio" name="severity" id="sevNormal" value="標準" checked>
+            <label for="sevNormal">標準</label>
+            <input type="radio" name="severity" id="sevStrict" value="きびしく">
+            <label for="sevStrict">きびしく</label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <button class="submit-btn" id="submitBtn">評価する</button>
+  </div>
+
+  <!-- Right Column -->
+  <div class="right-column result-area" id="resultArea">
+    <div class="result-placeholder" id="resultPlaceholder">
+      左側に作文を入力して「評価する」ボタンを押すと、<br>ここに評価結果が表示されます。
+    </div>
+  </div>
+</main>
+
+<script>
+(function() {
+  'use strict';
+
+  // DOM elements
+  const apiIndicator = document.getElementById('apiIndicator');
+  const openModalBtn = document.getElementById('openModalBtn');
+  const modalOverlay = document.getElementById('modalOverlay');
+  const apiKeyInput = document.getElementById('apiKeyInput');
+  const toggleVisBtn = document.getElementById('toggleVisBtn');
+  const cancelModalBtn = document.getElementById('cancelModalBtn');
+  const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
+  const essayInput = document.getElementById('essayInput');
+  const charCount = document.getElementById('charCount');
+  const gradeSelect = document.getElementById('gradeSelect');
+  const themeInput = document.getElementById('themeInput');
+  const submitBtn = document.getElementById('submitBtn');
+  const loadingOverlay = document.getElementById('loadingOverlay');
+  const resultArea = document.getElementById('resultArea');
+  const resultPlaceholder = document.getElementById('resultPlaceholder');
+
+  // API Key management
+  function getApiKey() {
+    return localStorage.getItem('gemini_api_key') || '';
+  }
+
+  function setApiKey(key) {
+    localStorage.setItem('gemini_api_key', key);
+  }
+
+  function updateIndicator() {
+    const key = getApiKey();
+    if (key) {
+      apiIndicator.className = 'api-indicator set';
+      apiIndicator.title = 'APIキー設定済み';
+    } else {
+      apiIndicator.className = 'api-indicator unset';
+      apiIndicator.title = 'APIキー未設定';
+    }
+  }
+
+  // Initialize indicator
+  updateIndicator();
+
+  // Modal handlers
+  openModalBtn.addEventListener('click', function() {
+    apiKeyInput.value = getApiKey();
+    modalOverlay.classList.add('active');
+    apiKeyInput.focus();
+  });
+
+  cancelModalBtn.addEventListener('click', function() {
+    modalOverlay.classList.remove('active');
+  });
+
+  modalOverlay.addEventListener('click', function(e) {
+    if (e.target === modalOverlay) {
+      modalOverlay.classList.remove('active');
+    }
+  });
+
+  saveApiKeyBtn.addEventListener('click', function() {
+    const key = apiKeyInput.value.trim();
+    setApiKey(key);
+    updateIndicator();
+    modalOverlay.classList.remove('active');
+  });
+
+  toggleVisBtn.addEventListener('click', function() {
+    if (apiKeyInput.type === 'password') {
+      apiKeyInput.type = 'text';
+      toggleVisBtn.textContent = '🔒';
+    } else {
+      apiKeyInput.type = 'password';
+      toggleVisBtn.textContent = '👁';
+    }
+  });
+
+  // Character count
+  essayInput.addEventListener('input', function() {
+    charCount.textContent = '文字数: ' + essayInput.value.length;
+  });
+
+  // Drag and drop
+  essayInput.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    essayInput.classList.add('drag-over');
+  });
+
+  essayInput.addEventListener('dragleave', function() {
+    essayInput.classList.remove('drag-over');
+  });
+
+  essayInput.addEventListener('drop', function(e) {
+    e.preventDefault();
+    essayInput.classList.remove('drag-over');
+    const files = e.dataTransfer.files;
+    if (files.length > 0 && files[0].type === 'text/plain') {
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        essayInput.value = ev.target.result;
+        charCount.textContent = '文字数: ' + essayInput.value.length;
+      };
+      reader.readAsText(files[0]);
+    }
+  });
+
+  // Get severity
+  function getSeverity() {
+    const checked = document.querySelector('input[name="severity"]:checked');
+    return checked ? checked.value : '標準';
+  }
+
+  // Build prompt
+  function buildPrompt(essay) {
+    const grade = gradeSelect.value;
+    const theme = themeInput.value.trim() || '未設定';
+    const severity = getSeverity();
+
+    return `あなたは${grade}向けの作文指導の専門家です。
+以下の作文を「${severity}」レベルで評価・添削してください。
+テーマ：${theme}
+
+評価軸：
+1. 誤字・文法（20点満点）：誤字脱字、句読点の誤り、助詞の使い方
+2. 構成・論理展開（20点満点）：序論・本論・結論の流れ、段落構成、論理の一貫性
+3. 表現力・語彙（20点満点）：語彙の豊かさ、比喩や修辞の活用、読み手への伝わりやすさ
+4. 内容・独創性（20点満点）：テーマへの掘り下げ、独自の視点、具体性
+5. 総合的な印象（20点満点）：全体のまとまり、読後感、完成度
+
+以下のJSON形式のみで回答してください。JSON以外の説明文は不要です。
+{
+  "scores": {
+    "spelling_grammar": (0-20の整数),
+    "structure_logic": (0-20の整数),
+    "expression": (0-20の整数),
+    "content_originality": (0-20の整数),
+    "overall_impression": (0-20の整数),
+    "total": (上記5つの合計、100点満点)
+  },
+  "good_points": ["良かった点1", "良かった点2", ...],
+  "improvements": ["改善点1", "改善点2", ...],
+  "corrected_text": "添削後の作文全文",
+  "summary_comment": "全体的なコメント（2〜3文）"
+}
+
+作文：
+${essay}`;
+  }
+
+  // Call Gemini API
+  async function callGeminiApi(essay) {
+    const apiKey = getApiKey();
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+
+    const prompt = buildPrompt(essay);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: prompt
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.3,
+          topP: 0.8,
+          maxOutputTokens: 4096,
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const errorMsg = errorData.error?.message || response.statusText;
+      throw new Error(`API エラー (${response.status}): ${errorMsg}`);
+    }
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!text) {
+      throw new Error('APIからの応答が空でした。');
+    }
+
+    return text;
+  }
+
+  // Parse API response
+  function parseResponse(text) {
+    // Try to extract JSON from the response (handle markdown code blocks)
+    let jsonStr = text;
+    const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonMatch) {
+      jsonStr = jsonMatch[1].trim();
+    } else {
+      // Try to find raw JSON
+      const braceMatch = text.match(/\{[\s\S]*\}/);
+      if (braceMatch) {
+        jsonStr = braceMatch[0];
+      }
+    }
+
+    return JSON.parse(jsonStr);
+  }
+
+  // Render results
+  function renderResults(result) {
+    resultArea.innerHTML = '';
+
+    // Total score card
+    const totalCard = document.createElement('div');
+    totalCard.className = 'card score-total-card';
+    const totalScore = result.scores.total;
+    totalCard.innerHTML = `
+      <div class="score-total-number">${totalScore}</div>
+      <div class="score-total-label">/ 100点</div>
+      <div class="score-total-comment">${escapeHtml(result.summary_comment)}</div>
+    `;
+    resultArea.appendChild(totalCard);
+
+    // Score bars
+    const barsCard = document.createElement('div');
+    barsCard.className = 'card score-bars';
+    barsCard.innerHTML = `<h3 class="card-title">各項目のスコア</h3>`;
+
+    const scores = [
+      { label: '誤字・文法', value: result.scores.spelling_grammar },
+      { label: '構成・論理', value: result.scores.structure_logic },
+      { label: '表現力', value: result.scores.expression },
+      { label: '内容・独創性', value: result.scores.content_originality },
+      { label: '総合的な印象', value: result.scores.overall_impression },
+    ];
+
+    scores.forEach(function(s) {
+      const pct = (s.value / 20) * 100;
+      const item = document.createElement('div');
+      item.className = 'score-bar-item';
+      item.innerHTML = `
+        <div class="score-bar-label">${s.label}</div>
+        <div class="score-bar-track">
+          <div class="score-bar-fill" style="width: 0%"></div>
+        </div>
+        <div class="score-bar-value">${s.value} / 20</div>
+      `;
+      barsCard.appendChild(item);
+      // Animate bar fill
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          item.querySelector('.score-bar-fill').style.width = pct + '%';
+        });
+      });
+    });
+
+    resultArea.appendChild(barsCard);
+
+    // Good points
+    if (result.good_points && result.good_points.length > 0) {
+      const goodCard = document.createElement('div');
+      goodCard.className = 'feedback-card good';
+      goodCard.innerHTML = `
+        <h4>良かった点</h4>
+        <ul class="feedback-list">
+          ${result.good_points.map(function(p) { return '<li>' + escapeHtml(p) + '</li>'; }).join('')}
+        </ul>
+      `;
+      resultArea.appendChild(goodCard);
+    }
+
+    // Improvements
+    if (result.improvements && result.improvements.length > 0) {
+      const improveCard = document.createElement('div');
+      improveCard.className = 'feedback-card improve';
+      improveCard.innerHTML = `
+        <h4>改善が必要な点</h4>
+        <ul class="feedback-list">
+          ${result.improvements.map(function(p) { return '<li>' + escapeHtml(p) + '</li>'; }).join('')}
+        </ul>
+      `;
+      resultArea.appendChild(improveCard);
+    }
+
+    // Corrected text
+    if (result.corrected_text) {
+      const corrCard = document.createElement('div');
+      corrCard.className = 'card corrected-card';
+      corrCard.innerHTML = `
+        <h3 class="card-title">添削例</h3>
+        <div class="corrected-text">${escapeHtml(result.corrected_text)}</div>
+      `;
+      resultArea.appendChild(corrCard);
+    }
+
+    // Copy button
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'copy-btn';
+    copyBtn.innerHTML = '📋 結果をコピー';
+    copyBtn.addEventListener('click', function() {
+      const text = buildCopyText(result);
+      navigator.clipboard.writeText(text).then(function() {
+        copyBtn.classList.add('copied');
+        copyBtn.innerHTML = '✓ コピーしました';
+        setTimeout(function() {
+          copyBtn.classList.remove('copied');
+          copyBtn.innerHTML = '📋 結果をコピー';
+        }, 2000);
+      });
+    });
+    resultArea.appendChild(copyBtn);
+  }
+
+  function buildCopyText(result) {
+    let text = '';
+    text += '【作文評価結果】\n\n';
+    text += '■ 総合スコア: ' + result.scores.total + ' / 100点\n\n';
+    text += '■ 各項目スコア\n';
+    text += '  誤字・文法: ' + result.scores.spelling_grammar + ' / 20\n';
+    text += '  構成・論理: ' + result.scores.structure_logic + ' / 20\n';
+    text += '  表現力: ' + result.scores.expression + ' / 20\n';
+    text += '  内容・独創性: ' + result.scores.content_originality + ' / 20\n';
+    text += '  総合的な印象: ' + (result.scores.overall_impression || 0) + ' / 20\n\n';
+    text += '■ 総評\n' + result.summary_comment + '\n\n';
+
+    if (result.good_points && result.good_points.length > 0) {
+      text += '■ 良かった点\n';
+      result.good_points.forEach(function(p) { text += '  ・' + p + '\n'; });
+      text += '\n';
+    }
+
+    if (result.improvements && result.improvements.length > 0) {
+      text += '■ 改善が必要な点\n';
+      result.improvements.forEach(function(p) { text += '  ・' + p + '\n'; });
+      text += '\n';
+    }
+
+    if (result.corrected_text) {
+      text += '■ 添削例\n' + result.corrected_text + '\n';
+    }
+
+    return text;
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // Show error
+  function showError(message, raw) {
+    resultArea.innerHTML = '';
+    const errCard = document.createElement('div');
+    errCard.className = 'error-card';
+    errCard.innerHTML = `
+      <h4>エラーが発生しました</h4>
+      <p>${escapeHtml(message)}</p>
+      ${raw ? '<pre>' + escapeHtml(raw) + '</pre>' : ''}
+    `;
+    resultArea.appendChild(errCard);
+  }
+
+  // Submit handler
+  submitBtn.addEventListener('click', async function() {
+    // Validate
+    if (!getApiKey()) {
+      showError('APIキーが設定されていません。ヘッダーの「APIキー設定」ボタンからAPIキーを入力してください。');
+      return;
+    }
+
+    const essay = essayInput.value.trim();
+    if (!essay) {
+      showError('作文が入力されていません。テキストエリアに作文を貼り付けてください。');
+      return;
+    }
+
+    // Show loading
+    submitBtn.disabled = true;
+    loadingOverlay.classList.add('active');
+
+    try {
+      const responseText = await callGeminiApi(essay);
+      let result;
+
+      try {
+        result = parseResponse(responseText);
+      } catch (parseErr) {
+        showError('APIの応答をJSONとして解析できませんでした。以下が生のレスポンスです。', responseText);
+        return;
+      }
+
+      // Validate result structure
+      if (!result.scores || typeof result.scores.total !== 'number') {
+        showError('APIの応答形式が期待と異なります。以下が生のレスポンスです。', JSON.stringify(result, null, 2));
+        return;
+      }
+
+      renderResults(result);
+
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      submitBtn.disabled = false;
+      loadingOverlay.classList.remove('active');
+    }
+  });
+})();
+</script>
+</body>
+</html>
