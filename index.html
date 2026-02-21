@@ -665,7 +665,7 @@ h1, h2, h3, h4 {
     <!-- Essay Input -->
     <div class="card" style="margin-bottom: 16px;">
       <h2 class="card-title">作文入力</h2>
-      <textarea class="essay-textarea" id="essayInput" placeholder="ここに作文を貼り付けてください。&#10;&#10;.txt ファイルのドラッグ&ドロップにも対応しています。"></textarea>
+      <textarea class="essay-textarea" id="essayInput" placeholder="ここに作文を貼り付けてください。&#10;&#10;.txt / .docx ファイルのドラッグ&ドロップにも対応しています。"></textarea>
       <div class="char-count" id="charCount">文字数: 0</div>
     </div>
 
@@ -805,19 +805,132 @@ h1, h2, h3, h4 {
     essayInput.classList.remove('drag-over');
   });
 
-  essayInput.addEventListener('drop', function(e) {
+  essayInput.addEventListener('drop', async function(e) {
     e.preventDefault();
     essayInput.classList.remove('drag-over');
     const files = e.dataTransfer.files;
-    if (files.length > 0 && files[0].type === 'text/plain') {
+    if (files.length === 0) return;
+
+    const file = files[0];
+    const name = file.name.toLowerCase();
+
+    if (file.type === 'text/plain' || name.endsWith('.txt')) {
       const reader = new FileReader();
       reader.onload = function(ev) {
         essayInput.value = ev.target.result;
         charCount.textContent = '文字数: ' + essayInput.value.length;
       };
-      reader.readAsText(files[0]);
+      reader.readAsText(file);
+    } else if (
+      file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      name.endsWith('.docx')
+    ) {
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const text = await extractTextFromDocx(arrayBuffer);
+        essayInput.value = text;
+        charCount.textContent = '文字数: ' + essayInput.value.length;
+      } catch (err) {
+        alert('Word文書の読み込みに失敗しました: ' + err.message);
+      }
+    } else {
+      alert('対応形式: .txt / .docx');
     }
   });
+
+  // Extract text from .docx (ZIP containing word/document.xml)
+  async function extractTextFromDocx(arrayBuffer) {
+    const bytes = new Uint8Array(arrayBuffer);
+    const view = new DataView(arrayBuffer);
+
+    // Find End of Central Directory record (PK\x05\x06)
+    let eocdOffset = -1;
+    for (let i = bytes.length - 22; i >= 0; i--) {
+      if (bytes[i] === 0x50 && bytes[i+1] === 0x4B &&
+          bytes[i+2] === 0x05 && bytes[i+3] === 0x06) {
+        eocdOffset = i;
+        break;
+      }
+    }
+    if (eocdOffset === -1) throw new Error('有効なdocxファイルではありません');
+
+    const cdOffset = view.getUint32(eocdOffset + 16, true);
+    const cdEntries = view.getUint16(eocdOffset + 10, true);
+
+    // Search central directory for word/document.xml
+    let offset = cdOffset;
+    let targetEntry = null;
+
+    for (let i = 0; i < cdEntries; i++) {
+      const nameLen = view.getUint16(offset + 28, true);
+      const extraLen = view.getUint16(offset + 30, true);
+      const commentLen = view.getUint16(offset + 32, true);
+      const localOffset = view.getUint32(offset + 42, true);
+      const method = view.getUint16(offset + 10, true);
+      const compSize = view.getUint32(offset + 20, true);
+      const entryName = new TextDecoder().decode(bytes.slice(offset + 46, offset + 46 + nameLen));
+
+      if (entryName === 'word/document.xml') {
+        targetEntry = { localOffset: localOffset, method: method, compSize: compSize };
+        break;
+      }
+      offset += 46 + nameLen + extraLen + commentLen;
+    }
+
+    if (!targetEntry) throw new Error('word/document.xml が見つかりません');
+
+    // Read local file header to locate data
+    const localNameLen = view.getUint16(targetEntry.localOffset + 26, true);
+    const localExtraLen = view.getUint16(targetEntry.localOffset + 28, true);
+    const dataStart = targetEntry.localOffset + 30 + localNameLen + localExtraLen;
+    const compressed = bytes.slice(dataStart, dataStart + targetEntry.compSize);
+
+    let xmlText;
+    if (targetEntry.method === 0) {
+      xmlText = new TextDecoder().decode(compressed);
+    } else if (targetEntry.method === 8) {
+      // Deflate — use browser DecompressionStream
+      const ds = new DecompressionStream('deflate-raw');
+      const writer = ds.writable.getWriter();
+      const reader = ds.readable.getReader();
+      writer.write(compressed);
+      writer.close();
+      const chunks = [];
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+      }
+      const total = chunks.reduce(function(s, c) { return s + c.length; }, 0);
+      const result = new Uint8Array(total);
+      let pos = 0;
+      for (const chunk of chunks) {
+        result.set(chunk, pos);
+        pos += chunk.length;
+      }
+      xmlText = new TextDecoder().decode(result);
+    } else {
+      throw new Error('未対応の圧縮方式です');
+    }
+
+    // Parse Word XML — extract text from w:p / w:t elements
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xmlText, 'application/xml');
+    const ns = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+    const paragraphs = doc.getElementsByTagNameNS(ns, 'p');
+
+    const lines = [];
+    for (let pi = 0; pi < paragraphs.length; pi++) {
+      const tNodes = paragraphs[pi].getElementsByTagNameNS(ns, 't');
+      let line = '';
+      for (let ti = 0; ti < tNodes.length; ti++) {
+        line += tNodes[ti].textContent;
+      }
+      lines.push(line);
+    }
+
+    return lines.join('\n');
+  }
 
   // Get severity
   function getSeverity() {
